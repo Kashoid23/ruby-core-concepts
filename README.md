@@ -1,3 +1,5 @@
+## 🔹 [MRI (Matz's Ruby Interpreter)](#mri)
+
 ## 🔹 [Rack](#rack)
 
 ## 🔹 [ActiveRecord](#activerecord)
@@ -29,6 +31,63 @@
 ## 🔹 [Memory leak](#memory-leak)
 
 ---
+
+# MRI
+
+> <b>MRI (Matz's Ruby Interpreter)</b> — стандартна реалізація Ruby, написана на C. Вона виконує код Ruby, перетворюючи його на байт-код для віртуальної машини YARV. Всі Rails-додатки зазвичай працюють на MRI (не JRuby, не TruffleRuby). Забезпечує GIL (Global Interpreter Lock).
+
+> <b>YARV (Yet Another Ruby VM)</b> — це основна віртуальна машина (байткод-інтерпретатор) для мови Ruby, починаючи з версії 1.9.
+
+> <b>Lexer (лексичний аналізатор)</b> — компонент, який бере Ruby-код у вигляді тексту і розбиває його на <b>токени</b>.
+
+> <b>Parser</b> бере токени і будує <b>AST (Abstract Syntax Tree)</b> — дерево, яке відображає структуру
+
+```
+Assignment
+├─ Left: identifier 'user'
+└─ Right: MethodCall
+    ├─ Receiver: Constant 'User'
+    ├─ Method: 'find'
+    └─ Argument: Integer 1
+```
+
+1. Парсинг
+
+- Ruby-файл (.rb) → Lexer → токени → Parser → AST (Abstract Syntax Tree)
+
+```
+user = User.find(1)
+```
+
+- → токени: `user, =, User, ., find, (, 1, )`
+- → AST: Assignment → MethodCall → Arguments
+
+2. Компиляція в байткод (YARV instructions)
+
+- AST трансформується в набір інструкцій VM:
+
+```
+putself
+putstring "User"
+send :find, 1
+setlocal user
+```
+
+3. Виконання в Ruby VM
+
+- Стекова машина обробляє інструкції
+- Управління передається від інструкції до інструкції
+- Локальні змінні живуть на stack frame, об’єкти у heap
+
+4. GC (Garbage Collector)
+
+- Mark-and-sweep + Generational GC
+- Періодично видаляє невикористані об’єкти
+- Важливо для Rails, бо великі ActiveRecord-об’єкти можуть швидко заповнювати heap
+
+5. C API / Native extensions
+
+- Gems з C (pg, Nokogiri) виконуються нативно → обробка швидше, bypass Ruby VM
 
 # Rack
 
