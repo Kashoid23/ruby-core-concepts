@@ -1,5 +1,11 @@
 ## 🔹 [MRI (Matz's Ruby Interpreter)](#mri)
 
+## 🔹 [Thread](#thread)
+
+## 🔹 [Mutex](#mutex)
+
+## 🔹 [Memory leak](#memory-leak)
+
 ## 🔹 [Rack](#rack)
 
 ## 🔹 [ActiveRecord](#activerecord)
@@ -10,15 +16,11 @@
 
 ## 🔹 [Autoloading](#autoloading)
 
-## 🔹 [Sidekiq](#sidekiq)
-
 ## 🔹 [Cache](#cache)
 
-## 🔹 [Thread](#thread)
-
-## 🔹 [Mutex](#mutex)
-
 ## 🔹 [Bundler](#bundler)
+
+## 🔹 [Sidekiq](#sidekiq)
 
 ## 🔹 [DB indexes](#db-indexes)
 
@@ -27,8 +29,6 @@
 ## 🔹 [Pessimistic Locking)](#pessimistic-locking)
 
 ## 🔹 [Deadlock](#deadlock)
-
-## 🔹 [Memory leak](#memory-leak)
 
 ---
 
