@@ -18,6 +18,8 @@
 
 ## 🔹 [DB indexes](#db-indexes)
 
+## 🔹 [JOIN (INNER / LEFT / RIGHT)](#join)
+
 ---
 
 # Rack
@@ -424,9 +426,9 @@ bundle install
 > <b>B-tree (self-balancing tree)</b> — найпоширеніший тип індексу у PostgreSQL/MySQL, який дозволяє виконувати пошук за логарифмічний час.
 
 ```
-      [M]       <- внутрішній вузол
+      [M]        <-  внутрішній вузол
      /   \
-[A..L]   [N..Z] <- листові вузли (ключі + посилання на рядки)
+[A..L]   [N..Z]  <-  листові вузли (ключі + посилання на рядки)
 ```
 
 > <b>Query planner</b> — механізм бази даних, який вирішує, який індекс (або повне сканування) використовувати для запиту.
@@ -441,3 +443,79 @@ bundle install
 > Індекси прискорюють SELECT запити.
 
 > Але кожен INSERT/UPDATE/DELETE, який змінює проіндексовані колонки, трохи сповільнюється, бо індекси потрібно оновлювати.
+
+# JOIN
+
+> <b>JOIN</b> — механізм SQL для об’єднання рядків з кількох таблиць за умовою.
+
+```
+users:          orders:
+
+1  Alice        1 user_id=1
+2  Bob          2 user_id=1
+3  Carol
+```
+
+1. INNER JOIN
+
+> Повертає лише ті рядки, де є співпадіння в обох таблицях.
+
+```
+SELECT users.*, orders.*
+FROM users
+INNER JOIN orders ON orders.user_id = users.id;
+```
+
+```
+Alice + Order 1
+Alice + Order 2
+```
+
+2. LEFT JOIN
+
+> Повертає всі рядки з лівої таблиці + NULL для правої, якщо немає співпадіння.
+
+```
+SELECT users.*, orders.*
+FROM users
+LEFT JOIN orders ON orders.user_id = users.id;
+```
+
+```
+Alice + Order 1
+Alice + Order 2
+Bob   + NULL
+Carol + NULL
+```
+
+3. RIGHT JOIN
+
+> Повертає всі рядки з правої таблиці + NULL для лівої, якщо немає співпадіння.
+
+```
+SELECT users.*, orders.*
+FROM users
+RIGHT JOIN orders ON orders.user_id = users.id;
+```
+
+```
+Alice + Order 1
+Alice + Order 2
+```
+
+4. FULL JOIN
+
+> Повертає всі рядки з правої таблиці та лівої, NULL там де немає співпадіння.
+
+```
+SELECT *
+FROM users
+FULL OUTER JOIN orders ON orders.user_id = users.id;
+```
+
+```
+Alice + Order 1
+Alice + Order 2
+Bob   + NULL
+Carol + NULL
+```
