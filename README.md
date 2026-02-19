@@ -26,7 +26,7 @@
 
 ## 🔹 [JOIN (INNER / LEFT / RIGHT)](#join)
 
-## 🔹 [Pessimistic Locking)](#pessimistic-locking)
+## 🔹 [Pessimistic Locking](#pessimistic-locking)
 
 ## 🔹 [Deadlock](#deadlock)
 
