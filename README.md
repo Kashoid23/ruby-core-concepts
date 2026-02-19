@@ -14,6 +14,8 @@
 
 ## 🔹 [Thread](#thread)
 
+## 🔹 [Bundler](#bundler)
+
 ---
 
 # Rack
@@ -379,3 +381,36 @@ Thread повертається в Puma Thread Pool
 > Для <b>CPU-bound (обчислення всередині CPU - стиснення файлів, шифрування, складні алгоритми)</b> задач багатопоточність у <b>MRI (Matz's Ruby Interpreter)</b> не дає прискорення, бо <b>GIL (Global Interpreter Lock)</b> гарантує, що у MRI Ruby тільки один Thread одночасно виконує Ruby-код.
 
 > Для <b>I/O-bound (очікування зовнішніх ресурсів - HTTP-запити, DB-запити, Redis)</b> багатопоточність дозволяє ефективну паралельність, Thread може чекати на I/O, а інші thread-и продовжують працювати.
+
+# Bundler
+
+> <b>Bundler</b> — менеджер залежностей.
+
+> <b>Gem</b> — Ruby-бібліотека.
+
+> <b>Gemfile</b> — файл, де описані залежності додатку.
+
+> <b>Gemfile.lock</b> — файл, який фіксує конкретні версії гемів.
+
+> <b>Dependency resolution</b> — процес підбору сумісних версій гемів.
+
+1. Описує потрібні геми Gemfile
+2. Виконуємо команду
+
+```
+bundle install
+```
+
+3. Bundler завантажує геми:
+
+- Перевіряє, чи є вони локально (GEM_PATH)
+- Якщо нема — завантажує потрібні версії з RubyGems.org
+
+4. Bundler будує дерево залежностей:
+
+- rails → activerecord, actionpack ...
+- sidekiq → redis, connection_pool ...
+
+5. Bundler підбирає сумісні версії всіх залежностей (dependency resolution).
+
+6. Bundler зберігає конкретні версії в Gemfile.lock
