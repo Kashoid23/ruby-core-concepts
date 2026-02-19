@@ -1,7 +1,10 @@
-# [Rack](#rack)
-# [ActiveRecord](#activerecord)
+## 🔹 [Rack](#rack)
 
-## Rack
+## 🔹 [ActiveRecord](#activerecord)
+
+---
+
+# Rack
 
 > <b>Web server</b> — приймає HTTP-запити (наприклад, Nginx).
 
@@ -65,7 +68,7 @@ end
 [200, { "Content-Type" => "application/json" }, ["{...}"]]
 ```
 
-## ActiveRecord
+# ActiveRecord
 
 > <b>ORM</b> — мапінг таблиць БД у Ruby-об’єкти.
 
