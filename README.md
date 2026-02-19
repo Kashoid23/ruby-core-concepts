@@ -1,4 +1,7 @@
 # [Rack](#rack)
+# [ActiveRecord](#activerecord)
+
+## Rack
 
 > <b>Web server</b> — приймає HTTP-запити (наприклад, Nginx).
 
@@ -61,3 +64,45 @@ end
 ```
 [200, { "Content-Type" => "application/json" }, ["{...}"]]
 ```
+
+## ActiveRecord
+
+> <b>ORM</b> — мапінг таблиць БД у Ruby-об’єкти.
+
+> <b>Lazy loading</b> — виконання SQL тільки при необхідності.
+
+> <b>Arel</b> — внутрішній SQL builder.
+
+> <b>Relation</b> — chainable query object.
+
+1. User наслідується від ActiveRecord::Base.
+
+2. where повертає ActiveRecord::Relation:
+
+```
+relation = User.where(email: "test@example.com")
+```
+
+SQL ще НЕ виконано.
+
+3. Створюється AST (Abstract Syntax Tree) через Arel.
+
+4. SQL генерується лише при:
+
+```
+relation.to_a
+relation.first
+relation.each
+```
+
+5. Генерується SQL:
+
+```
+SELECT "users".*
+FROM "users"
+WHERE "users"."email" = 'test@example.com'
+```
+
+6. Adapter виконує запит.
+
+7. Результат мапиться в Ruby-об’єкти.
