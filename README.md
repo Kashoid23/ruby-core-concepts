@@ -6,6 +6,8 @@
 
 ## 🔹 [eager loading](#eager-loading)
 
+## 🔹 [Autoloading](#autoloading)
+
 ---
 
 # Rack
@@ -200,3 +202,25 @@ LEFT OUTER JOIN posts ON posts.user_id = users.id;
 > User.includes(:posts).where(posts: ...)
 
 LEFT OUTER JOIN
+
+# Autoloading
+
+> <b>Zeitwerk</b> — це система автозавантаження класів і модулів, яка з’явилася в Rails 6 і стала стандартним loader-ом. Вона відповідає за те, щоб класи та модулі підключалися автоматично, без потреби робити require вручну.
+
+> <b>Constant resolution</b> — механізм пошуку констант.
+
+```
+app/models/admin/user.rb
+
+module Admin
+  class User
+  end
+end
+```
+
+> Admin::User.first
+
+1. Виклик константи Admin::User. На момент виконання константа ще не визначена.
+3. Якщо Ruby бачить (<b>constant lookup</b>), що є посилання на константу Admin::User. Zeitwerk перетворює ім’я константи на шлях до файлу, виходячи з конвенції іменування.
+4. Zeitwerk робить require для знайденого файлу. Після підвантаження файл визначає потрібну константу
+5. Коли Ruby не знаходить константу, викликається метод const_missing. Zeitwerk перехоплює цей виклик.
