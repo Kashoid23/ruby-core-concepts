@@ -12,6 +12,8 @@
 
 ## 🔹 [Cache](#cache)
 
+## 🔹 [Thread](#thread)
+
 ---
 
 # Rack
@@ -326,3 +328,54 @@ end
 - Для Redis → `SET key value EX seconds`
 - Для Memcached → `set key value expiration`
 - Для MemoryStore → зберігає в хеш у пам’яті процесу Rails
+
+# Thread
+
+> <b>Thread</b> — це окремий потік виконання в межах одного процесу Ruby.
+
+> <b>Thread pool</b> — набір потоків, готових виконувати задачі (наприклад, Puma при старті запускає N потоків, які чекають на HTTP request-и).
+
+> <b>Connection pool</b> — це пул готових з’єднань до бази даних, з якого Thread може тимчасово брати "connection" для SQL запитів та повертати. У Rails він реалізований у ActiveRecord.
+
+```
+connection = ActiveRecord::Base.connection_pool.checkout
+ActiveRecord::Base.connection_pool.checkin(connection)
+```
+
+Створюємо 10 потоків, кожен з яких робить свій HTTP-запит
+
+```
+threads = 10.times.map do
+  Thread.new do
+    response = Net::HTTP.get(URI("https://example.com"))
+    puts response.size
+  end
+end
+
+# чекаємо, поки всі thread-и закінчать, перед тим як продовжити виконання програми
+threads.each(&:join)
+```
+
+Rails + Puma
+
+```
+HTTP Request
+↓
+Puma Thread Pool
+↓
+Thread
+↓
+Controller
+↓
+Model / ActiveRecord → ActiveRecord Connection Pool → Database (SQL) → DB connection повертається в ActiveRecord Connection Pool
+↓
+View / Template
+↓
+HTTP Response
+↓
+Thread повертається в Puma Thread Pool
+```
+
+> Для <b>CPU-bound (обчислення всередині CPU - стиснення файлів, шифрування, складні алгоритми)</b> задач багатопоточність у <b>MRI (Matz's Ruby Interpreter)</b> не дає прискорення, бо <b>GIL (Global Interpreter Lock)</b> гарантує, що у MRI Ruby тільки один Thread одночасно виконує Ruby-код.
+
+> Для <b>I/O-bound (очікування зовнішніх ресурсів - HTTP-запити, DB-запити, Redis)</b> багатопоточність дозволяє ефективну паралельність, Thread може чекати на I/O, а інші thread-и продовжують працювати.
