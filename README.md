@@ -10,6 +10,8 @@
 
 ## 🔹 [Sidekiq](#sidekiq)
 
+## 🔹 [Cache](#cache)
+
 ---
 
 # Rack
@@ -283,3 +285,44 @@ worker.perform(1)
 6. Якщо perform повертає помилку
 
 > Sidekiq робить <b>retry</b> (не видаляє його з черги, а намагається повторити виконання через певний час) з <b>exponential backoff</b> (час між повторними виконаннями росте експоненційно).
+
+# Cache
+
+> <b>Cache</b> — це тимчасове збереження результатів (MemoryStore, RedisCacheStore, MemCacheStore)
+
+> <b>Cache key</b> — унікальний ідентифікатор кешованих даних.
+
+> <b>Marshal</b> — це стандартний модуль Ruby для серіалізації та десеріалізації Ruby-об’єктів. Він перетворює будь-який Ruby-об’єкт у байтовий потік
+
+Fragment caching (кеш частини view)
+
+```
+<% cache @user do %>
+  <%= render @user %>
+<% end %>
+```
+
+Cache key (включає ID користувача-updated_at):
+
+```
+users/1-20260219120000
+```
+
+Low-level caching (кеш довільних даних)
+
+```
+Rails.cache.fetch("expensive_query", expires_in: 1.hour) do
+  User.expensive_method
+end
+```
+
+1. Серіалізує Ruby-об’єкт
+
+- Якщо User.expensive_method повертає масив хешів, Rails повинен перетворити його в байти або рядок, щоб зберегти у бекенд.
+- Використовується </b>Marshal</b> (за замовчуванням) або інколи JSON для простих типів.
+
+2. Викликає метод write бекенду
+
+- Для Redis → `SET key value EX seconds`
+- Для Memcached → `set key value expiration`
+- Для MemoryStore → зберігає в хеш у пам’яті процесу Rails
