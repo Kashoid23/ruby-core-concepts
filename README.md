@@ -22,6 +22,8 @@
 
 ## 🔹 [Pessimistic Locking)](#pessimistic-locking)
 
+## 🔹 [Deadlock](#deadlock)
+
 ---
 
 # Rack
@@ -568,3 +570,50 @@ SELECT ... FOR NO KEY UPDATE
 ```
 
 → буде чекати, поки перша транзакція завершиться.
+
+# Deadlock
+
+> <b>Deadlock</b> — ситуація, коли дві (або більше) транзакцій чекають одна на одну, і жодна не може завершити роботу.
+
+> Deadlock виникає через row-level locks, які автоматично ставляться на UPDATE/DELETE.
+
+```
+id | balance | user_id
+1  | 1000    | 1
+2  | 2000    | 2
+```
+
+Транзакція A (Thread 1)
+
+```
+BEGIN;
+
+-- Блокування рядка з id = 1
+UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+
+-- Спроба змінити рядок з id = 2
+UPDATE accounts SET balance = balance + 100 WHERE id = 2;
+```
+
+Транзакція B (Thread 2)
+
+```
+BEGIN;
+
+-- Блокування рядка з id = 2
+UPDATE accounts SET balance = balance - 200 WHERE id = 2;
+
+-- Спроба змінити рядок з id = 1
+UPDATE accounts SET balance = balance + 200 WHERE id = 1;
+```
+
+1. Thread 1 блокує id = 1.
+2. Thread 2 блокує id = 2.
+3. Thread 1 намагається заблокувати id = 2, але він уже заблокований Thread 2 → Thread 1 чекає.
+4. Thread 2 намагається заблокувати id = 1, але він уже заблокований Thread 1 → Thread 2 чекає.
+
+Як уникнути
+
+- Фіксований порядок доступу до рядків — завжди оновлювати рядки в одному і тому ж порядку.
+- Короткі транзакції — мінімізувати час блокування.
+- SELECT ... FOR UPDATE — блокувати рядки явно перед оновленням.
