@@ -296,7 +296,7 @@ worker.perform(1)
 
 > <b>Marshal</b> — це стандартний модуль Ruby для серіалізації та десеріалізації Ruby-об’єктів. Він перетворює будь-який Ruby-об’єкт у байтовий потік
 
-Fragment caching (кеш частини view)
+<b>Fragment caching</b> (кеш частини view)
 
 ```
 <% cache @user do %>
@@ -310,7 +310,7 @@ Cache key (включає ID користувача-updated_at):
 users/1-20260219120000
 ```
 
-Low-level caching (кеш довільних даних)
+<b>Low-level caching</b> (кеш довільних даних)
 
 ```
 Rails.cache.fetch("expensive_query", expires_in: 1.hour) do
@@ -352,7 +352,7 @@ threads = 10.times.map do
   end
 end
 
-# чекаємо, поки всі thread-и закінчать, перед тим як продовжити виконання програми
+# чекаємо, поки всі Thread-и закінчать, перед тим як продовжити виконання програми
 threads.each(&:join)
 ```
 
