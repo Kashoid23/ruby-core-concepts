@@ -20,6 +20,8 @@
 
 ## 🔹 [JOIN (INNER / LEFT / RIGHT)](#join)
 
+## 🔹 [Pessimistic Locking)](#pessimistic-locking)
+
 ---
 
 # Rack
@@ -519,3 +521,50 @@ Alice + Order 2
 Bob   + NULL
 Carol + NULL
 ```
+
+# Pessimistic Locking
+
+> Механізм блокування рядків під час SELECT, щоб інші транзакції не могли їх змінити.
+
+```
+User.transaction do
+  # SELECT ... FOR UPDATE
+  user = User.lock.find(1)
+  user.balance -= 100
+  user.save!
+end
+```
+
+```
+BEGIN;
+SELECT * FROM users WHERE id = 1 FOR UPDATE;
+UPDATE users SET balance = ... WHERE id = 1;
+COMMIT;
+```
+
+1. Починається транзакція
+
+```
+BEGIN
+```
+
+Lock існує тільки в межах транзакції.
+
+2. PostgreSQL виконує `SELECT ... FOR UPDATE`
+
+- знаходить відповідний рядок
+- ставить на нього row-level lock типу FOR UPDATE
+- цей lock зберігається до COMMIT або ROLLBACK
+
+Postgres не блокує таблицю — блокується конкретна версія рядка.
+
+3. Інша транзакція, яка спробує:
+
+```
+UPDATE
+DELETE
+SELECT ... FOR UPDATE
+SELECT ... FOR NO KEY UPDATE
+```
+
+→ буде чекати, поки перша транзакція завершиться.
