@@ -4,6 +4,8 @@
 
 ## 🔹 [Transactions](#transactions)
 
+## 🔹 [eager loading](#eager-loading)
+
 ---
 
 # Rack
@@ -159,3 +161,42 @@ ROLLBACK;
 COMMIT;
 ```
 
+# eager loading
+
+> <b>Eager loading</b> — попереднє завантаження асоціацій.
+
+> <b>N+1 problem</b> — 1 запит на основну таблицю + N запитів на асоціації.
+
+```
+users = User.all
+users.each do |user|
+  puts user.posts.count
+end
+```
+
+Якщо 100 користувачів → 101 запит
+
+> User.preload(:posts)
+
+```
+SELECT * FROM users;
+SELECT * FROM posts WHERE user_id IN (...);
+```
+
+2 запити
+
+> User.eager_load(:posts)
+
+```
+SELECT users.*, posts.*
+FROM users
+LEFT OUTER JOIN posts ON posts.user_id = users.id;
+```
+
+> User.includes(:posts)
+
+2 запити
+
+> User.includes(:posts).where(posts: ...)
+
+LEFT OUTER JOIN
