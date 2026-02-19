@@ -8,6 +8,8 @@
 
 ## 🔹 [Autoloading](#autoloading)
 
+## 🔹 [Sidekiq](#sidekiq)
+
 ---
 
 # Rack
@@ -224,3 +226,60 @@ end
 3. Якщо Ruby бачить (<b>constant lookup</b>), що є посилання на константу Admin::User. Zeitwerk перетворює ім’я константи на шлях до файлу, виходячи з конвенції іменування.
 4. Zeitwerk робить require для знайденого файлу. Після підвантаження файл визначає потрібну константу
 5. Коли Ruby не знаходить константу, викликається метод const_missing. Zeitwerk перехоплює цей виклик.
+
+# Sidekiq
+
+> <b>Sidekiq</b> — це фреймворк для асинхронної обробки задач у Ruby. Він дозволяє запускати фонові Job-и, тобто обробляти важкі або тривалі операції поза основним запитом веб-сервера, не блокуючи його.
+
+> <b>Redis</b> — це високопродуктивна in-memory база даних типу key-value
+
+> <b>Worker</b> — Ruby-клас, який містить логіку виконання задачі. Має метод perform.
+
+> <b>Job</b> — екземпляр задачі, який буде виконаний.
+
+> <b>Queue</b> — черга в Redis, де зберігаються Job-и до виконання.
+
+> <b>Sidekiq/Worker process</b> — процес Sidekiq, який десеріалізує Job з черги і виконує.
+
+1. Створюємо Worker (клас)
+
+```
+class EmailWorker
+  include Sidekiq::Worker
+
+  def perform(user_id)
+    UserMailer.welcome(user_id).deliver_now
+  end
+end
+```
+
+2. Створюємо Job
+
+```
+EmailWorker.perform_async(user.id)
+```
+
+3. Sidekiq серіалізує Job у JSON
+
+```
+{ "class": "HardJobWorker", "args": [1], ... }
+```
+
+4. Sidekiq передає Job у Redis-чергу (queue). Job додається у список (list) Redis
+
+```
+queue:default → [{ "class": "EmailWorker", "args": [1], ... }, ...]
+```
+
+4. Sidekiq/Worker process десеріалізує та виконує Job.
+
+```
+worker = HardJobWorker.new
+worker.perform(1)
+```
+
+Може працювати багатопоточно, обробляючи декілька Job-ів одночасно.
+
+6. Якщо perform повертає помилку
+
+> Sidekiq робить <b>retry</b> (не видаляє його з черги, а намагається повторити виконання через певний час) з <b>exponential backoff</b> (час між повторними виконаннями росте експоненційно).
