@@ -2,17 +2,33 @@
 
 ## 🔹 [ActiveRecord](#activerecord)
 
+## 🔹 [Transactions](#transactions)
+
 ---
 
 # Rack
 
-> <b>Web server</b> — приймає HTTP-запити (наприклад, Nginx).
+> <b>Web Server (Nginx/Apache)</b> — приймає HTTP-запит, може віддати статичні файли або проксувати запит до application server
 
-> <b>Application server</b> — запускає Ruby-процес (наприклад, Puma).
+> <b>Application Server (Puma/Webrick)</b> — запускає Ruby-процеси та передає запит у Rack
 
-> <b>Rack</b> — стандартний інтерфейс між Ruby-фреймворком і веб-сервером.
+> <b>Rack</b> — це мінімальний, модульний інтерфейс між веб-серверами (Puma) та Ruby-фреймворками (Rails)
 
-> <b>Middleware</b> — обробник, що виконується до/після основного додатку.
+> <b>Rack Middleware stack</b> — ланцюжок middleware, що виконується до/після основного додатку.
+
+```
+Client (Request)
+↓
+Web Server (Nginx/Apache)
+↓
+Application Server (Puma/Unicorn)
+↓
+Rack Middleware (stack)
+↓
+Rails Application (Routes > Controller → Model → etc.)
+↓
+Rack Middleware (stack)
+```
 
 1. Браузер надсилає:
 
@@ -27,7 +43,7 @@ GET /users/1
 call(env)
 ```
 
-4. env — це Hash з:
+> env — це Hash з:
 
 ```
 REQUEST_METHOD
@@ -36,7 +52,7 @@ HTTP headers
 rack.input
 ```
 
-5. Middleware stack обробляє запит:
+4. Middleware stack обробляє запит:
 
 ```
 cookies
@@ -45,13 +61,13 @@ CSRF
 logging
 ```
 
-6. Router знаходить відповідність:
+5. Router знаходить відповідність:
 
 ```
 get "/users/:id", to: "users#show"
 ```
 
-7. Виконується:
+6. Виконується:
 
 ```
 class UsersController < ApplicationController
@@ -62,7 +78,7 @@ class UsersController < ApplicationController
 end
 ```
 
-8. Повертається Rack response:
+7. Повертається Rack response:
 
 ```
 [200, { "Content-Type" => "application/json" }, ["{...}"]]
@@ -70,7 +86,7 @@ end
 
 # ActiveRecord
 
-> <b>ORM</b> — мапінг таблиць БД у Ruby-об’єкти.
+> <b>ORM (Object Relational Mapping)</b> — мапінг таблиць БД у Ruby-об’єкти.
 
 > <b>Lazy loading</b> — виконання SQL тільки при необхідності.
 
@@ -109,3 +125,37 @@ WHERE "users"."email" = 'test@example.com'
 6. Adapter виконує запит.
 
 7. Результат мапиться в Ruby-об’єкти.
+
+# Transactions
+
+> <b>Transaction</b> — це послідовність операцій з базою даних, які розглядаються як єдине логічне ціле. Ці операції можуть включати вставку (INSERT), оновлення (UPDATE) або видалення (DELETE) записів у базі даних.
+
+> <b>ACID (Atomicity — атомарність, Consistency — узгодженість, Isolation — ізольованість, Durability — довговічність)</b> — це властивості, що гарантують цілісність даних з моменту BEGIN до COMMIT або ROLLBACK.
+
+```
+ActiveRecord::Base.transaction do
+  user.save!
+  account.save!
+end
+```
+
+1. Rails виконує:
+
+```
+BEGIN;
+```
+
+2. Виконуються INSERT/UPDATE.
+
+3. Відміняє всі зміни, зроблені в межах транзакції, якщо виникає exception:
+
+```
+ROLLBACK;
+```
+
+4. Якщо все успішно:
+
+```
+COMMIT;
+```
+
