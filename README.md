@@ -8,6 +8,8 @@
 
 ## 🔹 [Rack](#rack)
 
+## 🔹 [CSRF, XSS, SQL injection, Strong Parameters](#security)
+
 ## 🔹 [ActiveRecord](#activerecord)
 
 ## 🔹 [Transactions](#transactions)
@@ -722,3 +724,100 @@ UPDATE accounts SET balance = balance + 200 WHERE id = 1;
 2. Очищати кеш або сесії, якщо об’єкти більше не потрібні.
 3. Для великих циклів використовувати each_slice або обробку потоками без накопичення даних.
 4. У production — моніторити пам’ять (rack-mini-profiler, NewRelic)
+
+# Security
+
+> <b>CSRF (Cross-Site Request Forgery)</b> — це вид веб-атаки, яка змушує авторизованого користувача виконати небажані дії на іншому сайті (наприклад, змінити пароль, переказати кошти або змінити email) без його відома. Зловмисник використовує довіру сайту до браузера жертви.
+
+🛡 В ApplicationController:
+
+```
+protect_from_forgery with: :exception
+```
+
+1. Rails генерує CSRF token
+2. Кладе його в:
+
+- session
+- meta tag
+- hidden field у формах
+
+3. Перевіряє токен при кожному non-GET запиті
+
+```
+session[:_csrf_token] == params[:authenticity_token]
+```
+
+4. Якщо не співпадає → ActionController::InvalidAuthenticityToken
+
+> <b>Strong Parameters (Mass Assignment Protection)</b> - accepts_nested_attributes_for створював «чорний хід» для створення записів у пов'язаних таблицях, про який розробник міг навіть не замислюватися.
+
+```
+User.create(params[:user])
+```
+
+```
+user[roles_attributes][0][admin]=true
+```
+
+🛡 Рішення — Strong Parameters
+
+```
+def user_params
+  params.require(:user).permit(:email, :password)
+end
+```
+
+> <b>SQL Injection</b> — це тип уразливості вебдодатків, при якому зловмисник впроваджує шкідливий SQL-код у запити до бази даних через вхідні дані (форми, URL).
+
+Пряма інтерполяція параметрів у рядок запиту дозволяє зловмиснику маніпулювати базою даних.
+
+```
+User.where("email = '#{params[:email]}'")
+```
+
+🛡 Завжди використовуйте плейсхолдери або hash-синтаксис, які автоматично екранують вхідні дані:
+
+```
+User.where(email: params[:email])
+```
+
+> <b>XSS (Cross-Site Scripting)</b> — це тип вразливості веб-додатків, при якій зловмисник впроваджує шкідливий JavaScript-код на сторінку, яку переглядають інші користувачі. Цей код виконується в браузері жертви, дозволяючи викрадати сесійні файли cookie, логіни, паролі, або перенаправляти користувачів на фішингові сайти.
+
+- html_safe
+
+```
+# Контролер: отримуємо ім'я з параметрів URL
+@user_name = params[:name] 
+
+# В'юшка: виводимо ім'я, позначаючи його як "безпечне"
+<h2>Вітаємо, <%= @user_name.html_safe %></h2>
+```
+
+Якщо зловмисник перейде за посиланням ?name=<script>alert('Hacked!')</script>, браузер виконає цей скрипт
+
+- raw
+
+```
+# View: raw працює аналогічно html_safe, вимикаючи екранування
+<%= raw @user.bio %>
+```
+
+Якщо в полі bio збережено шкідливий код, він виконається у кожного, хто відкриє сторінку.
+
+- link_to
+
+```
+# Якщо користувач може сам вказати URL свого профілю
+<%= link_to "Мій сайт", @user.website_url %>
+```
+
+Атакувальник може ввести javascript:alert('XSS'). Коли інший користувач натисне на посилання, виконається JS-код.
+
+🛡 Rails автоматично escape-ить HTML.
+
+```
+&lt;script&gt;alert('Hacked')&lt;/script&gt;
+```
+
+html_safe, raw - вимикає захист
