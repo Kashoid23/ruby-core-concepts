@@ -814,10 +814,22 @@ User.where(email: params[:email])
 
 Атакувальник може ввести javascript:alert('XSS'). Коли інший користувач натисне на посилання, виконається JS-код.
 
-🛡 Rails автоматично escape-ить HTML.
+🛡 Rails автоматично escape-ить HTML
 
 ```
 &lt;script&gt;alert('Hacked')&lt;/script&gt;
 ```
 
 html_safe, raw - вимикає захист
+
+🛡 CSP (Content Security Policy)
+
+Навіть якщо Rails (Ruby on Rails) auto-escape-ить HTML, XSS все одно можливий через:
+
+- html_safe
+- сторонні JS бібліотеки
+- inline <script>
+- CDN, який зламали
+- injected third-party script
+
+CSP — це додатковий рівень. Це HTTP header, який говорить браузеру: “Звідки дозволено завантажувати скрипти, стилі, картинки і що можна виконувати.”
