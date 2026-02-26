@@ -617,6 +617,19 @@ bundle install
 
 > Але кожен INSERT/UPDATE/DELETE, який змінює проіндексовані колонки, трохи сповільнюється, бо індекси потрібно оновлювати.
 
+```
+rails generate migration AddIndexToUsersEmailWithDeletedAtFilter
+```
+
+```
+class AddIndexToUsersEmailWithDeletedAtFilter < ActiveRecord::Migration[7.0]
+  def change
+    # Partial index: only for rows that are not soft-deleted
+    add_index :users, :email, unique: true, where: "deleted_at IS NULL", name: "index_users_on_email_not_deleted"
+  end
+end
+```
+
 # JOIN
 
 > <b>JOIN</b> — механізм SQL для об’єднання рядків з кількох таблиць за умовою.
