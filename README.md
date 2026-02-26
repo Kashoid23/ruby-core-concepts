@@ -251,38 +251,107 @@ COMMIT;
 > <b>N+1 problem</b> — 1 запит на основну таблицю + N запитів на асоціації.
 
 ```
-users = User.all
-users.each do |user|
-  puts user.posts.count
+def index
+  posts = Post.all
+
+  render json: posts.map { |post|
+    {
+      id: post.id,
+      title: post.title,
+      author_name: post.user.name,
+      comments: post.comments.map { |comment|
+        {
+          id: comment.id,
+          content: comment.content,
+          author_name: comment.user.name
+        }
+      }
+    }
+  }
 end
 ```
 
-Якщо 100 користувачів → 101 запит
-
-> User.preload(:posts)
+> <b>Post.preload(:user, comments: :user)</b>
 
 ```
-SELECT * FROM users;
-SELECT * FROM posts WHERE user_id IN (...);
+SELECT "posts".* FROM "posts";
+
+SELECT "users".* 
+FROM "users" 
+WHERE "users"."id" IN (SELECT DISTINCT "posts"."user_id" FROM "posts");
+
+SELECT "comments".* 
+FROM "comments" 
+WHERE "comments"."post_id" IN (SELECT "posts"."id" FROM "posts");
+
+SELECT "users".* 
+FROM "users" 
+WHERE "users"."id" IN (SELECT DISTINCT "comments"."user_id" FROM "comments" WHERE "comments"."post_id" IN (SELECT "posts"."id" FROM "posts"));
 ```
 
-2 запити
+4 запити
 
-> User.eager_load(:posts)
+> <b>Post.eager_load(:user, comments: :user)</b>
 
 ```
-SELECT users.*, posts.*
-FROM users
-LEFT OUTER JOIN posts ON posts.user_id = users.id;
+SELECT
+  posts.id AS post_id,
+  posts.title,
+  users.id AS user_id,
+  users.name AS user_name,
+  comments.id AS comment_id,
+  comments.content AS comment_content,
+  comment_users.id AS comment_user_id,
+  comment_users.name AS comment_user_name
+FROM posts
+LEFT OUTER JOIN users
+  ON users.id = posts.user_id
+LEFT OUTER JOIN comments
+  ON comments.post_id = posts.id
+LEFT OUTER JOIN users comment_users
+  ON comment_users.id = comments.user_id;
 ```
 
-> User.includes(:posts)
+> <b>Post.includes(:user, comments: :user)</b>
 
-2 запити
+4 запити
 
-> User.includes(:posts).where(posts: ...)
+> <b>Post.includes(:user, comments: :user).where(posts: ...)</b>
 
 LEFT OUTER JOIN
+
+> Running raw SQL
+
+```
+sql = <<-SQL
+  SELECT ...
+  FROM ...
+  JOIN ... ON ... = ...;
+SQL
+
+rows = ActiveRecord::Base.connection.exec_query(sql)
+```
+
+> Final, optimized version
+
+```
+def index
+  posts = Post.includes(:user, comments: :user).select(:id, :title, :user_id).limit(50)
+
+  render json: posts.as_json(
+    only: [:id, :title],
+    include: {
+      user: { only: [:name] },
+      comments: {
+        only: [:id, :content],
+        include: {
+          user: { only: [:name] }
+        }
+      }
+    }
+  )
+end
+```
 
 # Autoloading
 
