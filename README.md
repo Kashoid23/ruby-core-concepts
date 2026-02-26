@@ -271,7 +271,7 @@ def index
 end
 ```
 
-> <b>Post.preload(:user, comments: :user)</b>
+1. <b>Post.preload(:user, comments: :user)</b>
 
 - Pros: avoids row duplication, memory-efficient for large datasets
 - Cons: cannot filter/sort on associations easily (no JOIN)
@@ -294,7 +294,7 @@ WHERE "users"."id" IN (SELECT DISTINCT "comments"."user_id" FROM "comments" WHER
 
 4 запити
 
-> <b>Post.eager_load(:user, comments: :user)</b>
+2. <b>Post.eager_load(:user, comments: :user)</b>
 
 - Pros: allows filtering/sorting on associations, fewer queries
 - Cons: can cause row explosion (posts repeated per comment), more memory used to reconstruct objects
@@ -318,7 +318,7 @@ LEFT OUTER JOIN users comment_users
   ON comment_users.id = comments.user_id;
 ```
 
-> <b>Post.includes(:user, comments: :user)</b>
+3. <b>Post.includes(:user, comments: :user)</b>
 
 4 запити
 
