@@ -1,4 +1,4 @@
-## 🔹 [Duck Typing](#duck_typing)
+## 🔹 [Duck Typing](#duck-typing)
 
 ## 🔹 [MRI (Matz's Ruby Interpreter)](#mri)
 
