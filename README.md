@@ -1,3 +1,5 @@
+## 🔹 [Duck Typing](#duck_typing)
+
 ## 🔹 [MRI (Matz's Ruby Interpreter)](#mri)
 
 ## 🔹 [Thread](#thread)
@@ -33,6 +35,14 @@
 ## 🔹 [Deadlock](#deadlock)
 
 ---
+
+# Duck Typing
+
+> "If it walks like a duck and quacks like a duck, then it's a duck."
+
+Duck typing is a dynamic typing concept where the type or class of an object is determined by its behavior — specifically, by the methods it responds to.
+
+A NoMethodError occurs during duck typing when your code calls a specific method on an object, but that object does not implement that method.
 
 # MRI
 
