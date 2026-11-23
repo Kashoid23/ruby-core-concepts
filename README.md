@@ -2,37 +2,37 @@
 
 ## 🔹 [MRI (Matz's Ruby Interpreter)](#mri)
 
-## 🔹 [Thread](#thread)
-
-## 🔹 [Mutex](#mutex)
-
-## 🔹 [Memory leak](#memory-leak)
-
 ## 🔹 [Rack](#rack)
-
-## 🔹 [CSRF, XSS, SQL injection, Strong Parameters](#security)
 
 ## 🔹 [ActiveRecord](#activerecord)
 
 ## 🔹 [Transactions](#transactions)
 
-## 🔹 [eager loading](#eager-loading)
+## 🔹 [Eager loading](#eager-loading)
 
 ## 🔹 [Autoloading](#autoloading)
 
+## 🔹 [Sidekiq](#sidekiq)
+
 ## 🔹 [Cache](#cache)
+
+## 🔹 [Thread](#thread)
+
+## 🔹 [Mutex](#mutex)
 
 ## 🔹 [Bundler](#bundler)
 
-## 🔹 [Sidekiq](#sidekiq)
-
 ## 🔹 [DB indexes](#db-indexes)
 
-## 🔹 [JOIN (INNER / LEFT / RIGHT)](#join)
+## 🔹 [JOIN (INNER / LEFT / RIGHT / FULL)](#join)
 
 ## 🔹 [Pessimistic Locking](#pessimistic-locking)
 
 ## 🔹 [Deadlock](#deadlock)
+
+## 🔹 [Memory leak](#memory-leak)
+
+## 🔹 [CSRF, XSS, SQL injection, Strong Parameters](#security)
 
 ---
 
@@ -40,13 +40,17 @@
 
 > "If it walks like a duck and quacks like a duck, then it's a duck."
 
-Duck typing is a dynamic typing concept where the type or class of an object is determined by its behavior — specifically, by the methods it responds to.
+<b>Duck typing</b> — підхід динамічної типізації, за якого важливий не клас об'єкта, а його поведінка, тобто методи, на які він відповідає.
 
-A NoMethodError occurs during duck typing when your code calls a specific method on an object, but that object does not implement that method.
+Якщо код викликає метод, якого об'єкт не реалізує, виникає `NoMethodError`. Перевірити заздалегідь можна через `respond_to?`.
+
+```ruby
+[File.open("log.txt", "w"), StringIO.new, $stdout].each { |io| io.puts "hello" }
+```
 
 # MRI
 
-> <b>MRI (Matz's Ruby Interpreter) або CRuby</b> — стандартна реалізація мови Ruby, написана на C, яка компілює Ruby-код у байткод і виконує його через віртуальну машину YARV. Використовує GIL (Global Interpreter Lock) для керування потоками.
+> <b>MRI (Matz's Ruby Interpreter) або CRuby</b> — стандартна реалізація мови Ruby, написана на C, яка компілює Ruby-код у байткод і виконує його через віртуальну машину YARV. Використовує GVL (Global VM Lock, часто його називають GIL — Global Interpreter Lock) для керування потоками.
 
 > <b>YARV (Yet Another Ruby VM)</b> — основна віртуальна машина Ruby (з версії 1.9), яка виконує байткод, згенерований MRI, забезпечуючи виконання програм Ruby.
 
@@ -67,23 +71,25 @@ Assignment
 
 - Ruby-файл (.rb) → Lexer → токени → Parser → AST (Abstract Syntax Tree)
 
-```
+```ruby
 user = User.find(1)
 ```
 
 - → токени: `user, =, User, ., find, (, 1, )`
 - → AST: Assignment → MethodCall → Arguments
 
-2. Компиляція в байткод (YARV instructions)
+2. Компіляція в байткод (YARV instructions)
 
 - AST трансформується в набір інструкцій VM:
 
 ```
-putself
-putstring "User"
-send :find, 1
-setlocal user
+opt_getconstant_path    <User>
+putobject_INT2FIX_1_
+opt_send_without_block  <mid:find, argc:1>
+setlocal_WC_0           user
 ```
+
+Подивитися байткод: `ruby --dump=insns -e 'user = User.find(1)'`
 
 3. Виконання в Ruby VM
 
@@ -93,21 +99,21 @@ setlocal user
 
 4. GC (Garbage Collector)
 
-- Mark-and-sweep + Generational GC
+- Mark-and-sweep + Generational + Incremental GC (з Ruby 2.7 також доступний compaction)
 - Періодично видаляє невикористані об’єкти
 - Важливо для Rails, бо великі ActiveRecord-об’єкти можуть швидко заповнювати heap
 
 5. C API / Native extensions
 
-- Gems з C (pg, Nokogiri) виконуються нативно → обробка швидше, bypass Ruby VM
+- Gems з C-розширеннями (pg, Nokogiri) виконують код нативно, без інтерпретації байткоду → швидше. Під час довгих I/O-операцій C-розширення можуть відпускати GVL
 
 # Rack
 
 > <b>Web Server (Nginx/Apache)</b> — приймає HTTP-запит, може віддати статичні файли або проксувати запит до application server
 
-> <b>Application Server (Puma/Webrick)</b> — запускає Ruby-процеси та передає запит у Rack
+> <b>Application Server (Puma/Unicorn)</b> — запускає Ruby-процеси та передає запит у Rack
 
-> <b>Rack</b> — це мінімальний, модульний інтерфейс між веб-серверами (Puma) та Ruby-фреймворками (Rails)
+> <b>Rack</b> — це мінімальний, модульний інтерфейс між application-серверами (Puma) та Ruby-фреймворками (Rails)
 
 > <b>Rack Middleware stack</b> — ланцюжок middleware, що виконується до/після основного додатку.
 
@@ -120,9 +126,11 @@ Application Server (Puma/Unicorn)
 ↓
 Rack Middleware (stack)
 ↓
-Rails Application (Routes > Controller → Model → etc.)
+Rails Application (Routes → Controller → Model → etc.)
 ↓
 Rack Middleware (stack)
+↓
+Client (Response)
 ```
 
 1. Браузер надсилає:
@@ -150,21 +158,23 @@ rack.input
 4. Middleware stack обробляє запит:
 
 ```
-cookies
-session
-CSRF
-logging
+ActionDispatch::Cookies
+ActionDispatch::Session::CookieStore
+Rails::Rack::Logger
+...
 ```
+
+Переглянути стек: `bin/rails middleware`. CSRF-перевірка — це не middleware, а before_action у контролері (`protect_from_forgery`).
 
 5. Router знаходить відповідність:
 
-```
+```ruby
 get "/users/:id", to: "users#show"
 ```
 
 6. Виконується:
 
-```
+```ruby
 class UsersController < ApplicationController
   def show
     @user = User.find(params[:id])
@@ -175,7 +185,7 @@ end
 
 7. Повертається Rack response:
 
-```
+```ruby
 [200, { "Content-Type" => "application/json" }, ["{...}"]]
 ```
 
@@ -183,7 +193,7 @@ end
 
 > <b>ORM (Object Relational Mapping)</b> — мапінг таблиць БД у Ruby-об’єкти.
 
-> <b>Lazy loading</b> — виконання SQL тільки при необхідності.
+> <b>Lazy evaluation</b> — Relation виконує SQL тільки тоді, коли потрібні дані.
 
 > <b>Arel</b> — внутрішній SQL builder.
 
@@ -193,7 +203,7 @@ end
 
 2. where повертає ActiveRecord::Relation:
 
-```
+```ruby
 relation = User.where(email: "test@example.com")
 ```
 
@@ -201,20 +211,22 @@ SQL ще НЕ виконано.
 
 3. Створюється AST (Abstract Syntax Tree) через Arel.
 
-4. SQL генерується лише при:
+4. SQL виконується лише при:
 
-```
+```ruby
 relation.to_a
-relation.first
 relation.each
+relation.load
 ```
+
+`relation.first` не завантажує весь relation, а робить окремий запит з `ORDER BY "users"."id" ASC LIMIT 1`.
 
 5. Генерується SQL:
 
-```
+```sql
 SELECT "users".*
 FROM "users"
-WHERE "users"."email" = 'test@example.com'
+WHERE "users"."email" = $1   -- значення передається як bind-параметр
 ```
 
 6. Adapter виконує запит.
@@ -225,9 +237,9 @@ WHERE "users"."email" = 'test@example.com'
 
 > <b>Transaction</b> — це послідовність операцій з базою даних, які розглядаються як єдине логічне ціле. Ці операції можуть включати вставку (INSERT), оновлення (UPDATE) або видалення (DELETE) записів у базі даних.
 
-> <b>ACID (Atomicity — атомарність, Consistency — узгодженість, Isolation — ізольованість, Durability — довговічність)</b> — це властивості, що гарантують цілісність даних з моменту BEGIN до COMMIT або ROLLBACK.
+> <b>ACID (Atomicity — атомарність, Consistency — узгодженість, Isolation — ізольованість, Durability — довговічність)</b> — це властивості, що гарантують надійність транзакцій: зміни застосовуються повністю або не застосовуються зовсім, а після COMMIT зберігаються навіть у разі збою.
 
-```
+```ruby
 ActiveRecord::Base.transaction do
   user.save!
   account.save!
@@ -236,31 +248,34 @@ end
 
 1. Rails виконує:
 
-```
+```sql
 BEGIN;
 ```
 
 2. Виконуються INSERT/UPDATE.
 
-3. Відміняє всі зміни, зроблені в межах транзакції, якщо виникає exception:
+3. Відміняє всі зміни, зроблені в межах транзакції, якщо з блоку вилітає exception:
 
-```
+```sql
 ROLLBACK;
 ```
 
+- `save` (без `!`) при помилці валідації повертає `false`, а не кидає exception, тому відкату не буде. У транзакціях використовуйте `save!`/`create!`.
+- `raise ActiveRecord::Rollback` відкочує транзакцію, але не прокидається за межі блоку.
+
 4. Якщо все успішно:
 
-```
+```sql
 COMMIT;
 ```
 
-# eager loading
+# Eager loading
 
 > <b>Eager loading</b> — попереднє завантаження асоціацій.
 
 > <b>N+1 problem</b> — 1 запит на основну таблицю + N запитів на асоціації.
 
-```
+```ruby
 def index
   posts = Post.all
 
@@ -286,30 +301,28 @@ end
 - Pros: avoids row duplication, memory-efficient for large datasets
 - Cons: cannot filter/sort on associations easily (no JOIN)
 
-```
+Rails бере id з уже завантажених записів і підставляє їх у `IN (...)`:
+
+```sql
 SELECT "posts".* FROM "posts";
 
-SELECT "users".* 
-FROM "users" 
-WHERE "users"."id" IN (SELECT DISTINCT "posts"."user_id" FROM "posts");
+SELECT "users".* FROM "users" WHERE "users"."id" IN (1, 2, 3);
 
-SELECT "comments".* 
-FROM "comments" 
-WHERE "comments"."post_id" IN (SELECT "posts"."id" FROM "posts");
+SELECT "comments".* FROM "comments" WHERE "comments"."post_id" IN (10, 11, 12);
 
-SELECT "users".* 
-FROM "users" 
-WHERE "users"."id" IN (SELECT DISTINCT "comments"."user_id" FROM "comments" WHERE "comments"."post_id" IN (SELECT "posts"."id" FROM "posts"));
+SELECT "users".* FROM "users" WHERE "users"."id" IN (4, 5, 6);
 ```
 
 4 запити
 
 > <b>Post.eager_load(:user, comments: :user)</b>
 
-- Pros: allows filtering/sorting on associations, fewer queries
+- Pros: allows filtering/sorting on associations, single query
 - Cons: can cause row explosion (posts repeated per comment), more memory used to reconstruct objects
 
-```
+Спрощено (насправді Rails генерує аліаси на кшталт `t0_r0`, `t1_r0` і `users_comments`):
+
+```sql
 SELECT
   posts.id AS post_id,
   posts.title,
@@ -330,18 +343,20 @@ LEFT OUTER JOIN users comment_users
 
 > <b>Post.includes(:user, comments: :user)</b>
 
-4 запити
+Rails сам обирає стратегію. За замовчуванням це `preload` (4 запити).
 
-> <b>Post.includes(:user, comments: :user).where(posts: ...)</b>
+> <b>Post.includes(:user, comments: :user).where(users: { name: "Bob" })</b>
 
-LEFT OUTER JOIN
+Умова на асоційовану таблицю → `includes` перемикається на `eager_load` (один запит з LEFT OUTER JOIN). Для рядкових умов потрібно явно додати `.references(:users)`.
+
+`Post.includes(...).where(posts: ...)` (умова на основну таблицю) лишається `preload`.
 
 ---
 
 Running raw SQL
 
-```
-sql = <<-SQL
+```ruby
+sql = <<~SQL
   SELECT ...
   FROM ...
   JOIN ... ON ... = ...;
@@ -352,9 +367,9 @@ rows = ActiveRecord::Base.connection.exec_query(sql)
 
 Final, optimized version
 
-```
+```ruby
 def index
-  posts = Post.includes(:user, comments: :user).select(:id, :title, :user_id).limit(50)
+  posts = Post.preload(:user, comments: :user).select(:id, :title, :user_id).order(id: :desc).limit(50)
 
   render json: posts.as_json(
     only: [:id, :title],
@@ -388,10 +403,12 @@ end
 
 > Admin::User.first
 
-1. Виклик константи Admin::User. На момент виконання константа ще не визначена.
-3. Якщо Ruby бачить (<b>constant lookup</b>), що є посилання на константу Admin::User. Zeitwerk перетворює ім’я константи на шлях до файлу, виходячи з конвенції іменування.
-4. Zeitwerk робить require для знайденого файлу. Після підвантаження файл визначає потрібну константу
-5. Коли Ruby не знаходить константу, викликається метод const_missing. Zeitwerk перехоплює цей виклик.
+1. Під час завантаження Rails Zeitwerk обходить autoload paths (`app/models`, `app/controllers`...) і за конвенцією іменування перетворює шляхи на імена констант: `admin/user.rb` → `Admin::User`.
+2. Для кожної константи Zeitwerk реєструє `Module#autoload`, наприклад `Admin.autoload(:User, "app/models/admin/user.rb")`.
+3. Код звертається до `Admin::User`. Ruby (<b>constant lookup</b>) бачить зареєстрований autoload і сам робить `require` файлу.
+4. Файл визначає константу, і виконання продовжується.
+
+`const_missing` використовував класичний autoloader (Rails до 6). Zeitwerk на нього не покладається. У production (`config.eager_load = true`) Zeitwerk завантажує всі файли одразу при старті.
 
 # Sidekiq
 
@@ -399,7 +416,7 @@ end
 
 > <b>Redis</b> — це високопродуктивна in-memory база даних типу key-value
 
-> <b>Worker</b> — Ruby-клас, який містить логіку виконання задачі. Має метод perform.
+> <b>Worker / Job class</b> — Ruby-клас, який містить логіку виконання задачі. Має метод perform.
 
 > <b>Job</b> — екземпляр задачі, який буде виконаний.
 
@@ -409,9 +426,9 @@ end
 
 1. Створюємо Worker (клас)
 
-```
+```ruby
 class EmailWorker
-  include Sidekiq::Worker
+  include Sidekiq::Job # з Sidekiq 6.3; Sidekiq::Worker лишився як аліас
 
   def perform(user_id)
     UserMailer.welcome(user_id).deliver_now
@@ -421,14 +438,14 @@ end
 
 2. Створюємо Job
 
-```
+```ruby
 EmailWorker.perform_async(user.id)
 ```
 
 3. Sidekiq серіалізує Job у JSON
 
 ```
-{ "class": "HardJobWorker", "args": [1], ... }
+{ "class": "EmailWorker", "args": [1], ... }
 ```
 
 4. Sidekiq передає Job у Redis-чергу (queue). Job додається у список (list) Redis
@@ -437,18 +454,20 @@ EmailWorker.perform_async(user.id)
 queue:default → [{ "class": "EmailWorker", "args": [1], ... }, ...]
 ```
 
-4. Sidekiq/Worker process десеріалізує та виконує Job.
+5. Sidekiq/Worker process забирає Job з черги (BRPOP), десеріалізує та виконує.
 
-```
-worker = HardJobWorker.new
+```ruby
+worker = EmailWorker.new
 worker.perform(1)
 ```
 
 Може працювати багатопоточно, обробляючи декілька Job-ів одночасно.
 
-6. Якщо perform повертає помилку
+6. Якщо perform кидає exception
 
-> Sidekiq робить <b>retry</b> (не видаляє його з черги, а намагається повторити виконання через певний час) з <b>exponential backoff</b> (час між повторними виконаннями росте експоненційно).
+> Sidekiq переносить Job у <b>Retry set</b> (sorted set у Redis) і повторює виконання з <b>exponential backoff</b> (час між спробами росте експоненційно). За замовчуванням 25 спроб, приблизно за 21 день. Після цього Job потрапляє в <b>Dead set</b>.
+
+Тому job має бути <b>ідемпотентним</b>: повторне виконання не повинно ламати дані. Аргументи — тільки прості JSON-типи (id, а не ActiveRecord-об'єкт).
 
 # Cache
 
@@ -460,30 +479,34 @@ worker.perform(1)
 
 <b>Fragment caching</b> (кеш частини view)
 
-```
+```erb
 <% cache @user do %>
   <%= render @user %>
 <% end %>
 ```
 
-Cache key (включає ID користувача-updated_at):
+Cache key будується з моделі та digest-у шаблону:
 
 ```
-users/1-20260219120000
+views/users/_user:<template_digest>/users/1
 ```
+
+З Rails 5.2 (`cache_versioning`) `updated_at` не входить у ключ, а зберігається окремо як cache version (`20260219120000000000`). Коли запис оновлюється, версія не збігається, і кеш вважається застарілим.
 
 <b>Low-level caching</b> (кеш довільних даних)
 
-```
+```ruby
 Rails.cache.fetch("expensive_query", expires_in: 1.hour) do
   User.expensive_method
 end
 ```
 
+`fetch` спочатку читає ключ. Якщо дані є (cache hit), блок не виконується. Якщо немає (cache miss), виконується блок, а результат записується:
+
 1. Серіалізує Ruby-об’єкт
 
 - Якщо User.expensive_method повертає масив хешів, Rails повинен перетворити його в байти або рядок, щоб зберегти у бекенд.
-- Використовується </b>Marshal</b> (за замовчуванням) або інколи JSON для простих типів.
+- Використовується <b>Marshal</b> (за замовчуванням) або інколи JSON для простих типів.
 
 2. Викликає метод write бекенду
 
@@ -495,18 +518,23 @@ end
 
 > <b>Thread</b> — це окремий потік виконання в межах одного процесу Ruby.
 
-> <b>Thread pool</b> — набір потоків, готових виконувати задачі (наприклад, Puma при старті запускає N потоків, які чекають на HTTP request-и).
+> <b>Thread pool</b> — набір потоків, готових виконувати задачі (наприклад, Puma тримає від min до max потоків, які обробляють HTTP request-и).
 
 > <b>Connection pool</b> — це пул готових з’єднань до бази даних, з якого Thread може тимчасово брати "connection" для SQL запитів та повертати. У Rails він реалізований у ActiveRecord.
 
+```ruby
+ActiveRecord::Base.connection_pool.with_connection do |connection|
+  connection.execute("SELECT 1")
+end # з'єднання автоматично повертається в пул
 ```
-connection = ActiveRecord::Base.connection_pool.checkout
-ActiveRecord::Base.connection_pool.checkin(connection)
-```
+
+Розмір пулу (`pool` у database.yml) має бути не меншим за кількість потоків Puma, інакше потоки чекатимуть на з'єднання (`ActiveRecord::ConnectionTimeoutError`).
 
 Створюємо 10 потоків, кожен з яких робить свій HTTP-запит
 
-```
+```ruby
+require "net/http"
+
 threads = 10.times.map do
   Thread.new do
     response = Net::HTTP.get(URI("https://example.com"))
@@ -538,18 +566,19 @@ HTTP Response
 Thread повертається в Puma Thread Pool
 ```
 
-> Для <b>CPU-bound (обчислення всередині CPU - стиснення файлів, шифрування, складні алгоритми)</b> задач багатопоточність у <b>MRI (Matz's Ruby Interpreter)</b> не дає прискорення, бо <b>GIL (Global Interpreter Lock)</b> гарантує, що у MRI Ruby тільки один Thread одночасно виконує Ruby-код.
+> Для <b>CPU-bound (обчислення всередині CPU - стиснення файлів, шифрування, складні алгоритми)</b> задач багатопоточність у <b>MRI (Matz's Ruby Interpreter)</b> не дає прискорення, бо <b>GVL (Global VM Lock, він же GIL)</b> гарантує, що у MRI Ruby тільки один Thread одночасно виконує Ruby-код.
 
-> Для <b>I/O-bound (очікування зовнішніх ресурсів - HTTP-запити, DB-запити, Redis)</b> багатопоточність дозволяє ефективну паралельність, Thread може чекати на I/O, а інші thread-и продовжують працювати.
+> Для <b>I/O-bound (очікування зовнішніх ресурсів - HTTP-запити, DB-запити, Redis)</b> багатопоточність дозволяє ефективну паралельність, Thread може чекати на I/O, а інші thread-и продовжують працювати (під час I/O GVL відпускається).
 
 # Mutex
 
 > <b>Mutex</b> — це механізм синхронізації, який дозволяє уникнути одночасного доступу до критичної секції коду з кількох потоків (Threads).
 
-```
+```ruby
+file_path = "log.txt"
 mutex = Mutex.new
 
-threads = 5.times.map do
+threads = 5.times.map do |i|
   Thread.new do
     mutex.synchronize do
       File.open(file_path, "a") do |f|
@@ -567,7 +596,7 @@ threads.each(&:join)
 2. `mutex.synchronize do ... end` – блокує критичну секцію, щоб тільки один потік міг відкривати та писати у файл одночасно.
 3. Без Mutex декілька потоків могли б одночасно відкрити файл для додавання ("a"), і дані могли б змішатися.
 
-Якщо файл великий або запис часто повторюється, краще використовувати чергу запису або Redis/Sidekiq job, щоб не блокувати потоки на довго.
+Якщо файл великий або запис часто повторюється, краще використовувати чергу запису або Redis/Sidekiq job, щоб не блокувати потоки надовго.
 
 # Bundler
 
@@ -581,32 +610,34 @@ threads.each(&:join)
 
 > <b>Dependency resolution</b> — процес підбору сумісних версій гемів.
 
-1. Описує потрібні геми Gemfile
+1. Описуємо потрібні геми в Gemfile
 2. Виконуємо команду
 
 ```
 bundle install
 ```
 
-3. Bundler завантажує геми:
+3. Якщо Gemfile.lock уже є і відповідає Gemfile — Bundler бере версії з нього, без resolution.
+
+4. Інакше Bundler будує дерево залежностей:
+
+- rails → activerecord, actionpack ...
+- sidekiq → redis-client, connection_pool ...
+
+5. Bundler підбирає сумісні версії всіх залежностей (dependency resolution).
+
+6. Bundler встановлює геми:
 
 - Перевіряє, чи є вони локально (GEM_PATH)
 - Якщо нема — завантажує потрібні версії з RubyGems.org
 
-4. Bundler будує дерево залежностей:
-
-- rails → activerecord, actionpack ...
-- sidekiq → redis, connection_pool ...
-
-5. Bundler підбирає сумісні версії всіх залежностей (dependency resolution).
-
-6. Bundler зберігає конкретні версії в Gemfile.lock
+7. Bundler зберігає конкретні версії в Gemfile.lock
 
 # DB indexes
 
 > <b>Index</b> — структура даних у базі, яка прискорює пошук рядків.
 
-> <b>B-tree (self-balancing tree)</b> — найпоширеніший тип індексу у PostgreSQL/MySQL, який дозволяє виконувати пошук за логарифмічний час.
+> <b>B-tree (self-balancing tree)</b> — найпоширеніший тип індексу у PostgreSQL/MySQL (в InnoDB — B+tree), який дозволяє виконувати пошук за логарифмічний час.
 
 ```
       [M]        <-  внутрішній вузол
@@ -620,8 +651,9 @@ bundle install
 2. PostgreSQL будує B-tree для колонки
 3. Коли виконується запит
 
-- Query planner перевіряє наявність індексу → пошук за логарифмічний час O(log n)
-- Без індексу → повне сканування таблиці O(n)
+- Query planner оцінює вартість і, якщо індекс вигідний, використовує його → пошук за O(log n)
+- Без індексу → повне сканування таблиці (Seq Scan) O(n)
+- Planner може обрати Seq Scan навіть за наявності індексу (мала таблиця, низька селективність). Перевірити: `EXPLAIN ANALYZE`
 
 > Індекси прискорюють SELECT запити.
 
@@ -631,11 +663,17 @@ bundle install
 rails generate migration AddIndexToUsersEmailWithDeletedAtFilter
 ```
 
-```
+```ruby
 class AddIndexToUsersEmailWithDeletedAtFilter < ActiveRecord::Migration[7.0]
+  disable_ddl_transaction! # потрібно для algorithm: :concurrently
+
   def change
-    # Partial index: only for rows that are not soft-deleted
-    add_index :users, :email, unique: true, where: "deleted_at IS NULL", name: "index_users_on_email_not_deleted"
+    # Partial index: only for rows that are not soft-deleted (PostgreSQL; MySQL не підтримує partial indexes)
+    add_index :users, :email,
+              unique: true,
+              where: "deleted_at IS NULL",
+              name: "index_users_on_email_not_deleted",
+              algorithm: :concurrently # не блокує запис у таблицю під час побудови індексу
   end
 end
 ```
@@ -649,14 +687,14 @@ users:          orders:
 
 1  Alice        1 user_id=1
 2  Bob          2 user_id=1
-3  Carol
+3  Carol        3 user_id=NULL
 ```
 
 1. INNER JOIN
 
-> Повертає лише ті рядки, де є співпадіння в обох таблицях.
+> Повертає лише ті рядки, де є збігу в обох таблицях.
 
-```
+```sql
 SELECT users.*, orders.*
 FROM users
 INNER JOIN orders ON orders.user_id = users.id;
@@ -669,9 +707,9 @@ Alice + Order 2
 
 2. LEFT JOIN
 
-> Повертає всі рядки з лівої таблиці + NULL для правої, якщо немає співпадіння.
+> Повертає всі рядки з лівої таблиці + NULL для правої, якщо немає збігу.
 
-```
+```sql
 SELECT users.*, orders.*
 FROM users
 LEFT JOIN orders ON orders.user_id = users.id;
@@ -686,9 +724,9 @@ Carol + NULL
 
 3. RIGHT JOIN
 
-> Повертає всі рядки з правої таблиці + NULL для лівої, якщо немає співпадіння.
+> Повертає всі рядки з правої таблиці + NULL для лівої, якщо немає збігу.
 
-```
+```sql
 SELECT users.*, orders.*
 FROM users
 RIGHT JOIN orders ON orders.user_id = users.id;
@@ -697,13 +735,14 @@ RIGHT JOIN orders ON orders.user_id = users.id;
 ```
 Alice + Order 1
 Alice + Order 2
+NULL  + Order 3
 ```
 
 4. FULL JOIN
 
-> Повертає всі рядки з правої таблиці та лівої, NULL там де немає співпадіння.
+> Повертає всі рядки з правої таблиці та лівої, NULL там де немає збігу.
 
-```
+```sql
 SELECT *
 FROM users
 FULL OUTER JOIN orders ON orders.user_id = users.id;
@@ -714,22 +753,23 @@ Alice + Order 1
 Alice + Order 2
 Bob   + NULL
 Carol + NULL
+NULL  + Order 3
 ```
 
 # Pessimistic Locking
 
 > Механізм блокування рядків під час SELECT, щоб інші транзакції не могли їх змінити.
 
-```
+```ruby
 User.transaction do
   # SELECT ... FOR UPDATE
-  user = User.lock.find(1)
+  user = User.lock.find(1) # або user.with_lock { ... }
   user.balance -= 100
   user.save!
 end
 ```
 
-```
+```sql
 BEGIN;
 SELECT * FROM users WHERE id = 1 FOR UPDATE;
 UPDATE users SET balance = ... WHERE id = 1;
@@ -738,7 +778,7 @@ COMMIT;
 
 1. Починається транзакція
 
-```
+```sql
 BEGIN
 ```
 
@@ -750,26 +790,29 @@ Lock існує тільки в межах транзакції.
 - ставить на нього row-level lock типу FOR UPDATE
 - цей lock зберігається до COMMIT або ROLLBACK
 
-Postgres не блокує таблицю — блокується конкретна версія рядка.
+Postgres не блокує таблицю для запису — блокується конкретний рядок.
 
 3. Інша транзакція, яка спробує:
 
 ```
 UPDATE
 DELETE
-SELECT ... FOR UPDATE
-SELECT ... FOR NO KEY UPDATE
+SELECT ... FOR UPDATE / FOR NO KEY UPDATE / FOR SHARE / FOR KEY SHARE
 ```
 
 → буде чекати, поки перша транзакція завершиться.
+
+Звичайний `SELECT` (без FOR ...) не блокується і читає останню закомічену версію рядка (MVCC).
 
 # Deadlock
 
 > <b>Deadlock</b> — ситуація, коли дві (або більше) транзакцій чекають одна на одну, і жодна не може завершити роботу.
 
-> Deadlock виникає через row-level locks, які автоматично ставляться на UPDATE/DELETE.
+> Найчастіше deadlock виникає через row-level locks, які автоматично ставляться на UPDATE/DELETE.
 
 ```
+accounts:
+
 id | balance | user_id
 1  | 1000    | 1
 2  | 2000    | 2
@@ -777,7 +820,7 @@ id | balance | user_id
 
 Транзакція A (Thread 1)
 
-```
+```sql
 BEGIN;
 
 -- Блокування рядка з id = 1
@@ -789,7 +832,7 @@ UPDATE accounts SET balance = balance + 100 WHERE id = 2;
 
 Транзакція B (Thread 2)
 
-```
+```sql
 BEGIN;
 
 -- Блокування рядка з id = 2
@@ -803,12 +846,13 @@ UPDATE accounts SET balance = balance + 200 WHERE id = 1;
 2. Thread 2 блокує id = 2.
 3. Thread 1 намагається заблокувати id = 2, але він уже заблокований Thread 2 → Thread 1 чекає.
 4. Thread 2 намагається заблокувати id = 1, але він уже заблокований Thread 1 → Thread 2 чекає.
+5. PostgreSQL виявляє цикл очікування (через `deadlock_timeout`, за замовчуванням 1 с) і скасовує одну з транзакцій з помилкою `deadlock detected`. У Rails це `ActiveRecord::Deadlocked`, після якого транзакцію можна повторити.
 
 Як уникнути
 
 - Фіксований порядок доступу до рядків — завжди оновлювати рядки в одному і тому ж порядку.
 - Короткі транзакції — мінімізувати час блокування.
-- SELECT ... FOR UPDATE — блокувати рядки явно перед оновленням.
+- SELECT ... FOR UPDATE у фіксованому порядку — блокувати всі потрібні рядки одразу на початку транзакції: `Account.where(id: [1, 2]).order(:id).lock`.
 
 # Memory leak
 
@@ -816,22 +860,22 @@ UPDATE accounts SET balance = balance + 200 WHERE id = 1;
 
 - Зростання споживання пам’яті
 - Уповільнення програми
-- Можливого краху через OutOfMemoryError
+- Можливого краху через `NoMemoryError` або вбивства процесу OOM killer-ом
 
 💡 У Ruby garbage collector (GC) звільняє невикористовувану пам’ять, але leak може виникати, якщо є посилання на об’єкти, які більше не потрібні.
 
 1. Не використовувати глобальні та класові змінні для великих об’єктів.
 2. Очищати кеш або сесії, якщо об’єкти більше не потрібні.
-3. Для великих циклів використовувати each_slice або обробку потоками без накопичення даних.
-4. У production — моніторити пам’ять (rack-mini-profiler, NewRelic)
+3. Для великих вибірок використовувати `find_each` / `find_in_batches` (ActiveRecord) або `each_slice`, не накопичуючи дані в пам'яті.
+4. Профілювати пам'ять (memory_profiler, derailed_benchmarks, rack-mini-profiler) і моніторити її в production (New Relic, Datadog). Зменшити фрагментацію допомагає jemalloc.
 
 # Security
 
-> <b>CSRF (Cross-Site Request Forgery)</b> — це вид веб-атаки, яка змушує авторизованого користувача виконати небажані дії на іншому сайті (наприклад, змінити пароль, переказати кошти або змінити email) без його відома. Зловмисник використовує довіру сайту до браузера жертви.
+> <b>CSRF (Cross-Site Request Forgery)</b> — це вид веб-атаки, яка змушує авторизованого користувача виконати небажані дії на сайті, де він залогінений, через запит зі стороннього сайту (наприклад, змінити пароль, переказати кошти або змінити email) без його відома. Зловмисник використовує довіру сайту до браузера жертви.
 
 🛡 В ApplicationController:
 
-```
+```ruby
 protect_from_forgery with: :exception
 ```
 
@@ -842,29 +886,40 @@ protect_from_forgery with: :exception
 - meta tag
 - hidden field у формах
 
-3. Перевіряє токен при кожному non-GET запиті
+3. Перевіряє токен при кожному запиті, крім GET/HEAD: бере його з `params[:authenticity_token]` або заголовка `X-CSRF-Token` і порівнює з токеном у session.
 
-```
-session[:_csrf_token] == params[:authenticity_token]
-```
+Спрощено:
 
-4. Якщо не співпадає → ActionController::InvalidAuthenticityToken
-
-> <b>Strong Parameters (Mass Assignment Protection)</b> - accepts_nested_attributes_for створював «чорний хід» для створення записів у пов'язаних таблицях, про який розробник міг навіть не замислюватися.
-
-```
-User.create(params[:user])
+```ruby
+secure_compare(unmask(params[:authenticity_token]), session[:_csrf_token])
 ```
 
+Токен у формі щоразу маскується (XOR з випадковим значенням), щоб захиститися від BREACH-атак.
+
+4. Якщо не збігається → ActionController::InvalidAuthenticityToken
+
+> <b>Mass Assignment</b> — вразливість, коли всі параметри запиту напряму передаються в модель, і зловмисник може змінити поля, які не мали б бути доступні (наприклад, `admin`).
+
+```ruby
+User.create(params[:user]) # з Rails 4 кидає ActiveModel::ForbiddenAttributesError
 ```
-user[roles_attributes][0][admin]=true
+
+```
+user[admin]=true
+```
+
+З `accepts_nested_attributes_for` так само можна створювати/змінювати записи в пов'язаних таблицях, про що розробник міг навіть не замислюватися:
+
+```
+user[roles_attributes][0][name]=admin
 ```
 
 🛡 Рішення — Strong Parameters
 
-```
+```ruby
 def user_params
   params.require(:user).permit(:email, :password)
+  # Rails 8: params.expect(user: [:email, :password])
 end
 ```
 
@@ -872,34 +927,38 @@ end
 
 Пряма інтерполяція параметрів у рядок запиту дозволяє зловмиснику маніпулювати базою даних.
 
-```
+```ruby
 User.where("email = '#{params[:email]}'")
 ```
 
 🛡 Завжди використовуйте плейсхолдери або hash-синтаксис, які автоматично екранують вхідні дані:
 
-```
+```ruby
 User.where(email: params[:email])
+User.where("email = ?", params[:email])
+User.where("name LIKE ?", "%#{User.sanitize_sql_like(params[:q])}%")
 ```
 
 > <b>XSS (Cross-Site Scripting)</b> — це тип вразливості веб-додатків, при якій зловмисник впроваджує шкідливий JavaScript-код на сторінку, яку переглядають інші користувачі. Цей код виконується в браузері жертви, дозволяючи викрадати сесійні файли cookie, логіни, паролі, або перенаправляти користувачів на фішингові сайти.
 
 - html_safe
 
-```
+```ruby
 # Контролер: отримуємо ім'я з параметрів URL
-@user_name = params[:name] 
+@user_name = params[:name]
+```
 
-# В'юшка: виводимо ім'я, позначаючи його як "безпечне"
+```erb
+<%# View: виводимо ім'я, позначаючи його як "безпечне" %>
 <h2>Вітаємо, <%= @user_name.html_safe %></h2>
 ```
 
-Якщо зловмисник перейде за посиланням ?name=<script>alert('Hacked!')</script>, браузер виконає цей скрипт
+Якщо жертва перейде за посиланням `?name=<script>alert('Hacked!')</script>`, браузер виконає цей скрипт
 
 - raw
 
-```
-# View: raw працює аналогічно html_safe, вимикаючи екранування
+```erb
+<%# raw працює аналогічно html_safe, вимикаючи екранування %>
 <%= raw @user.bio %>
 ```
 
@@ -907,12 +966,12 @@ User.where(email: params[:email])
 
 - link_to
 
-```
-# Якщо користувач може сам вказати URL свого профілю
+```erb
+<%# Якщо користувач може сам вказати URL свого профілю %>
 <%= link_to "Мій сайт", @user.website_url %>
 ```
 
-Атакувальник може ввести javascript:alert('XSS'). Коли інший користувач натисне на посилання, виконається JS-код.
+Атакувальник може ввести `javascript:alert('XSS')`. Коли інший користувач натисне на посилання, виконається JS-код. Захист — валідація URL у моделі (дозволяти лише `http`/`https`).
 
 🛡 Rails автоматично escape-ить HTML
 
@@ -920,16 +979,32 @@ User.where(email: params[:email])
 &lt;script&gt;alert('Hacked')&lt;/script&gt;
 ```
 
-html_safe, raw - вимикає захист
+`html_safe` і `raw` вимикають цей захист. Якщо потрібно дозволити частину HTML — використовуйте `sanitize`:
+
+```erb
+<%= sanitize @user.bio, tags: %w[b i a p], attributes: %w[href] %>
+```
 
 🛡 CSP (Content Security Policy)
 
-Навіть якщо Rails (Ruby on Rails) auto-escape-ить HTML, XSS все одно можливий через:
+Навіть якщо Rails auto-escape-ить HTML, XSS все одно можливий через:
 
 - html_safe
 - сторонні JS бібліотеки
-- inline <script>
+- inline `<script>`
 - CDN, який зламали
 - injected third-party script
 
 CSP — це додатковий рівень. Це HTTP header, який говорить браузеру: “Звідки дозволено завантажувати скрипти, стилі, картинки і що можна виконувати.”
+
+```ruby
+# config/initializers/content_security_policy.rb
+Rails.application.configure do
+  config.content_security_policy do |policy|
+    policy.default_src :self
+    policy.script_src  :self
+    policy.object_src  :none
+  end
+  config.content_security_policy_nonce_generator = ->(request) { SecureRandom.base64(16) }
+end
+```
